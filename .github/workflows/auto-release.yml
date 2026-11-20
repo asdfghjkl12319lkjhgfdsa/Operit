@@ -1,0 +1,42 @@
+name: Auto Release APK
+
+on:
+  workflow_run:
+    workflows: ["Android Build"]
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download APK artifacts from source run
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: |
+          find dist -type f -printf '%s\t%p\n' | sort -n
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-build-${{ github.event.workflow_run.run_number }}
+          name: Operit dev build ${{ github.event.workflow_run.run_number }}
+          body: |
+            Automated build from Operit dev branch.
+            Source commit: ${{ github.event.workflow_run.head_sha }}
+            Triggered by run: ${{ github.event.workflow_run.id }}
+            Built on GitHub-hosted runners.
+            APK is debug-signed.
+          files: |
+            dist/**/*.apk
+          fail_on_unmatched_files: true
